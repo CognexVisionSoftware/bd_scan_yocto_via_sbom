@@ -3,7 +3,7 @@ import requests
 import json
 import logging
 import re
-from semver import Version
+import semver
 
 from .RecipeClass import Recipe
 
@@ -387,8 +387,9 @@ class OE:
         if not version:
             return None, ''
 
-        if Version.is_valid(version):
-            return Version.parse(version), ''
+        parsed_version = semver.parse(version=version, loose=False)
+        if parsed_version is not None:
+            return parsed_version, ''
 
         """
         Convert an incomplete version string into a semver-compatible Version
