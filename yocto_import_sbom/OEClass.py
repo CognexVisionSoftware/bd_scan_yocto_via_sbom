@@ -3,7 +3,7 @@ import requests
 import json
 import logging
 import re
-from semver import Version
+import semver
 
 from .RecipeClass import Recipe
 
@@ -251,7 +251,6 @@ class OE:
         # - Bool - Match found
         # - Bool - Exact version match
         oe_ver_equal = False
-
         try:
             if best_oe_recipe != {}:
                 logging.debug(f"Comparing {recipe.name}/{recipe.version} to {oe_recipe['pn']}/{oe_recipe['pv']} "
@@ -277,14 +276,14 @@ class OE:
                     semver, rest = self.coerce_version(recipe.version)
                     oe_semver, oe_rest = self.coerce_version(oe_ver)
                     best_oe_semver, best_oe_rest = self.coerce_version(best_oe_ver)
-                    if semver is not None and oe_semver is not None and oe_semver <= semver:
+                    if semver is not None and oe_semver is not None and oe_semver.compare(semver) <= 0:
                         if self.check_semver_distance(conf, semver, oe_semver):
                             if best_oe_semver is not None:
-                                if oe_semver == best_oe_semver:
+                                if oe_semver.compare(best_oe_semver) == 0:
                                     if len(oe_ver) < len(best_oe_ver):
                                         pref = True
                                     oe_ver_equal = True
-                                elif semver >= oe_semver > best_oe_semver:
+                                elif semver.compare(oe_semver) >= 0 and oe_semver.compare(best_oe_semver) > 0:
                                     if (semver.major - best_oe_semver.major) > (semver.major - oe_semver.major):
                                         pref = True
                                     elif (semver.minor - best_oe_semver.minor) > (semver.minor - oe_semver.minor):
@@ -387,8 +386,9 @@ class OE:
         if not version:
             return None, ''
 
-        if Version.is_valid(version):
-            return Version.parse(version), ''
+        parsed_version = semver.parse(version=version, loose=False)
+        if parsed_version is not None:
+            return parsed_version, ''
 
         """
         Convert an incomplete version string into a semver-compatible Version
@@ -424,7 +424,14 @@ class OE:
         ver = {
             key: 0 if value is None else value for key, value in match.groupdict().items()
         }
-        ver = Version(**ver)
+        if 'patch' in ver:
+            ver_str = f"{ver['major']}.{ver['minor']}.{ver['patch']}"
+        elif 'minor' in ver:
+            ver_str = f"{ver['major']}.{ver['minor']}"
+        else:
+            ver_str = f"{ver['major']}"
+
+        ver = semver.semver(ver_str, loose=False)
         rest = match.string[match.end():]  # noqa:E203
         return ver, rest
 
